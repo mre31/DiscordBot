@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: discord-bot
+    env: python
+    buildCommand: chmod +x build.sh && ./build.sh
+    startCommand: gunicorn app:app
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.7
+      - key: DISCORD_TOKEN
+        sync: false  # Render arayüzünden manuel olarak ayarlanmalı
+    plan: free  # Ücretsiz plan kullanılacak 
