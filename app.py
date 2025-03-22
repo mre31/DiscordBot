@@ -1,8 +1,10 @@
 from flask import Flask, render_template, request, jsonify
-import threading
 import os
 import logging
-from bot import client
+import subprocess
+import time
+import signal
+import atexit
 from dotenv import load_dotenv
 
 # .env dosyasından çevre değişkenlerini yükle
@@ -15,57 +17,114 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Bot thread değişkeni
-bot_thread = None
+# Bot process
+bot_process = None
+
+# Bot durumu
+bot_status = {
+    "running": False,
+    "start_time": None,
+    "pid": None
+}
+
+def start_bot_process():
+    """Discord botunu ayrı bir süreçte başlatır"""
+    global bot_process, bot_status
+    
+    if bot_process is None or bot_process.poll() is not None:
+        try:
+            # worker.py'yi ayrı bir süreçte başlat
+            bot_process = subprocess.Popen(["python", "worker.py"])
+            bot_status["running"] = True
+            bot_status["start_time"] = time.time()
+            bot_status["pid"] = bot_process.pid
+            logger.info(f"Discord bot başlatıldı (PID: {bot_process.pid})")
+        except Exception as e:
+            logger.error(f"Bot başlatılırken hata oluştu: {str(e)}")
+            bot_status["running"] = False
+    
+    return bot_status["running"]
+
+def stop_bot_process():
+    """Discord bot sürecini durdurur"""
+    global bot_process, bot_status
+    
+    if bot_process and bot_process.poll() is None:
+        try:
+            bot_process.terminate()
+            time.sleep(2)
+            if bot_process.poll() is None:
+                bot_process.kill()
+            
+            bot_status["running"] = False
+            bot_status["pid"] = None
+            logger.info("Discord bot durduruldu")
+        except Exception as e:
+            logger.error(f"Bot durdurulurken hata oluştu: {str(e)}")
+
+# Uygulama kapanırken bot sürecini temizle
+atexit.register(stop_bot_process)
 
 # Ana sayfa
 @app.route('/')
 def home():
-    # Bot'un başlatılıp başlatılmadığını kontrol et ve gerekirse başlat
-    start_bot()
-    return 'Discord bot çalışıyor! Bu sayfa Render üzerinde barındırılıyor.'
+    status = "çalışıyor" if bot_status.get("running", False) else "başlatılıyor"
+    return f'Discord bot {status}! Bu sayfa Render üzerinde barındırılıyor.'
 
 # Health check endpoint
 @app.route('/health')
 def health():
-    return jsonify({"status": "alive", "message": "Bot çalışıyor!"})
+    return jsonify({
+        "status": "alive", 
+        "message": "Bot çalışıyor!" if bot_status.get("running", False) else "Bot başlatılıyor veya çalışmıyor.",
+        "bot_status": bot_status
+    })
 
-# Bot bilgilerini görüntüleme
-@app.route('/stats')
-def stats():
-    stats_data = {
-        "guilds": len(client.guilds) if hasattr(client, 'guilds') else 0,
-        "uptime": "Çalışıyor",
-        "status": "Online"
-    }
-    return jsonify(stats_data)
+# Bot kontrolü
+@app.route('/bot/status')
+def bot_status_route():
+    # Bot sürecinin durumunu kontrol et
+    if bot_process and bot_process.poll() is None:
+        bot_status["running"] = True
+    else:
+        bot_status["running"] = False
+    
+    return jsonify(bot_status)
 
-# Bot'u ayrı bir thread'de başlat
-def run_discord_bot():
-    try:
-        # Önce Render ortam değişkenini kontrol et, yoksa .env dosyasından al
-        token = os.environ.get('DISCORD_TOKEN') or os.getenv('DISCORD_TOKEN')
-        if not token:
-            logger.error("DISCORD_TOKEN bulunamadı! Render ortam değişkenlerini veya .env dosyasını kontrol edin.")
-            return
-        
-        logger.info("Discord botu başlatılıyor...")
-        client.run(token)
-    except Exception as e:
-        logger.error(f"Bot başlatılırken hata oluştu: {str(e)}")
+@app.route('/bot/start')
+def start_bot_route():
+    if start_bot_process():
+        return jsonify({"success": True, "message": "Bot başlatıldı"})
+    else:
+        return jsonify({"success": False, "message": "Bot başlatılamadı"})
 
-# Bot'u başlatmak için fonksiyon
-def start_bot():
-    global bot_thread
-    if bot_thread is None or not bot_thread.is_alive():
-        bot_thread = threading.Thread(target=run_discord_bot)
-        bot_thread.daemon = True
-        bot_thread.start()
-        logger.info("Bot thread başlatıldı")
+@app.route('/bot/stop')
+def stop_bot_route():
+    stop_bot_process()
+    return jsonify({"success": True, "message": "Bot durduruldu"})
+
+@app.route('/bot/restart')
+def restart_bot_route():
+    stop_bot_process()
+    time.sleep(2)
+    if start_bot_process():
+        return jsonify({"success": True, "message": "Bot yeniden başlatıldı"})
+    else:
+        return jsonify({"success": False, "message": "Bot yeniden başlatılamadı"})
 
 # Uygulama başladığında bot'u başlat
-with app.app_context():
-    start_bot()
+# Flask 2.x'te before_first_request kaldırıldı, bunun yerine Flask'ın context işleyicilerini kullanacağız
+@app.before_request
+def start_before_request():
+    # Global bir değişkenle ilk istek geldiğinde çalıştırmayı kontrol ediyoruz
+    global first_request_processed
+    if not getattr(app, 'first_request_processed', False):
+        start_bot_process()
+        app.first_request_processed = True
+
+# Uygulama başladığında bot'u otomatik başlat (varsa)
+if os.environ.get('AUTO_START_BOT', 'True').lower() == 'true':
+    start_bot_process()
 
 if __name__ == '__main__':
     # Flask uygulamasını başlat
