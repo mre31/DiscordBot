@@ -75,8 +75,22 @@
         {
             "url": "https://www.youtube.com/watch?v=LSvOTw8UH6s&ab_channel=GWLyrics",
             "title": "??? - Mysterious Track"
+        },
+        {
+            "url": "https://www.youtube.com/watch?v=l1k0t9QiN3g&ab_channel=blazinqflare",
+            "title": "STARSET - Stratosphere"
+        },
+        {
+            "url": "https://www.youtube.com/watch?v=2AB3_l0iqSk&ab_channel=starsetonline",
+            "title": "STARSET - dark things"
         }
     ],
+    "last_played": {
+        "308282813797367809": {
+            "url": "https://youtu.be/3aWh3I0EhY4?feature=shared",
+            "title": "UEFA Europa League Anthem"
+        }
+    },
     "shuffle_settings": {
         "308282813797367809": true
     }
