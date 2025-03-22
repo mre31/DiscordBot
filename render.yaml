@@ -13,6 +13,10 @@ services:
         sync: false  # Render arayüzünden manuel olarak ayarlanmalı
       - key: AUTO_START_BOT
         value: "True"
+      - key: PYTHONHTTPSVERIFY
+        value: "0"
+      - key: SSL_CERT_FILE
+        value: ""
     plan: free  # Ücretsiz plan kullanılacak
 
   - type: worker
@@ -26,4 +30,8 @@ services:
         value: 3.11.7
       - key: DISCORD_TOKEN
         sync: false  # Render arayüzünden manuel olarak ayarlanmalı
+      - key: PYTHONHTTPSVERIFY
+        value: "0"
+      - key: SSL_CERT_FILE
+        value: ""
     plan: free  # Ücretsiz plan kullanılacak 

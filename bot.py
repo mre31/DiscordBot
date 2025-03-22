@@ -36,7 +36,8 @@ ytdl_format_options = {
     'force_generic_extractor': False,
     'cachedir': False,
     'socket_timeout': 10,
-    'max_downloads': 5
+    'max_downloads': 5,
+    'nocheckcertificate': True  # SSL sertifika doğrulamasını devre dışı bırak
 }
 
 ffmpeg_options = {
@@ -354,7 +355,7 @@ class MusicBot(discord.Client):
 
 class SongSelectView(View):
     def __init__(self, search_results, client, interaction):
-        super().__init__(timeout=60)
+        super().__init__(timeout=300)
         self.search_results = search_results[:5]  # İlk 5 sonuç
         self.client = client
         self.original_interaction = interaction
